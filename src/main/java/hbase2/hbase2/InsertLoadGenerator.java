@@ -1,9 +1,15 @@
 package hbase2.hbase2;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Properties;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Get;
@@ -20,6 +26,20 @@ public class InsertLoadGenerator {
 		Properties prop = System.getProperties();
 		System.out.println(prop.getProperty("java.class.path", null));
 
+		List<String> lines = new ArrayList<String>();
+		BufferedReader br = new BufferedReader(new InputStreamReader(
+				InsertLoadGenerator.class.getResourceAsStream("/pg5000.txt")));
+		String line = br.readLine();
+		while (line != null) {
+			if ("".equals(line.trim())) {
+				line = br.readLine();
+				continue;
+			}
+			lines.add(line);
+			line = br.readLine();
+			System.out.println(line);
+		}
+
 		// You need a configuration object to tell the client where to connect.
 		// When you create a HBaseConfiguration, it reads in whatever you've set
 		// into your hbase-site.xml and in hbase-default.xml, as long as these
@@ -30,8 +50,10 @@ public class InsertLoadGenerator {
 		// "myLittleHBaseTable" table.
 		HTable table = new HTable(config, "myLittleHBaseTable");
 		long start, finish, diff;
+		String hash;
 
-		for (int i = 0; i < 10000000; i++) {
+		for (String currline : lines) {
+			hash = DigestUtils.shaHex(currline);
 
 			// To add to a row, use Put. A Put constructor takes the name of the
 			// row
@@ -45,7 +67,7 @@ public class InsertLoadGenerator {
 			// want
 			// to update on the row, the timestamp to use in your update, etc.
 			// If no timestamp, the server applies current time to the edits.
-			Put p = new Put(Bytes.toBytes("row-" + i));
+			Put p = new Put(Bytes.toBytes("row-" + hash));
 
 			// To set the value you'd like to update in the row 'myLittleRow',
 			// specify the column family, column qualifier, and value of the
@@ -56,7 +78,7 @@ public class InsertLoadGenerator {
 			// arrays. Lets pretend the table 'myLittleHBaseTable' was created
 			// with a family 'myLittleFamily'.
 			p.add(Bytes.toBytes("myLittleFamily"),
-					Bytes.toBytes("someQualifier"), Bytes.toBytes("value for row-" + i));
+					Bytes.toBytes("someQualifier"), Bytes.toBytes(currline));
 
 			// Once you've adorned your Put instance with all the updates you
 			// want
@@ -68,7 +90,7 @@ public class InsertLoadGenerator {
 			table.put(p);
 			finish = Calendar.getInstance().getTimeInMillis();
 			diff = finish - start;
-			System.out.println("Insert " + i + " took " + diff + " ms");
+			System.out.println("Insert " + hash + " took " + diff + " ms");
 		}
 
 	}
